@@ -9,7 +9,7 @@ import { TX_TYPE_LABELS, type Transaction, type TxType } from '../types'
 const PAGE = 50
 
 export default function Transactions() {
-  const months = useMemo(() => lastMonths(36).reverse(), [])
+  const months = useMemo(() => lastMonths(60).reverse(), [])
   const [month, setMonth] = useState<string>(months[0]) // '' = all time
   const [categoryId, setCategoryId] = useState('')
   const [methodId, setMethodId] = useState('')
