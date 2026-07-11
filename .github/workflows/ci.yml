@@ -60,10 +60,10 @@ jobs:
 
       # --- Package level: OSV database cross-check on the lockfile ---
       - name: OSV scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v2
         continue-on-error: true
-        with:
-          scan-args: --lockfile=package-lock.json
+        run: |
+          docker run --rm -v "$PWD:/src" ghcr.io/google/osv-scanner:latest \
+            scan --lockfile=/src/package-lock.json
 
       # --- Code level: static analysis for security bugs ---
       - name: Semgrep scan
