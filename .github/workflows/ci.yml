@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Typecheck & build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 7
+
+  security:
+    name: Vulnerability scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --- Package level: known CVEs in the dependency tree ---
+      - name: npm audit (production dependencies)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: npm audit (full tree, report only)
+        run: npm audit --audit-level=high || true
+
+      # --- Package level: OSV database cross-check on the lockfile ---
+      - name: OSV scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2
+        continue-on-error: true
+        with:
+          scan-args: --lockfile=package-lock.json
+
+      # --- Code level: static analysis for security bugs ---
+      - name: Semgrep scan
+        run: |
+          python3 -m pip install --quiet semgrep
+          semgrep scan --config p/default --config p/react --config p/typescript \
+            --error --metrics=off src/

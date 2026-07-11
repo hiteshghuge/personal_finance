@@ -1,5 +1,5 @@
 import Papa from 'papaparse'
-import * as XLSX from 'xlsx'
+import { Workbook, type CellValue } from 'exceljs'
 import type { NewTransaction, TxType } from '../types'
 
 export type RawRow = Record<string, unknown>
@@ -17,13 +17,46 @@ export async function parseFile(file: File, sheetName?: string): Promise<ParsedS
     const headers = result.meta.fields ?? []
     return { headers, rows: result.data, sheetNames: [] }
   }
-  const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf, { cellDates: true })
-  const name = sheetName ?? wb.SheetNames[0]
-  const ws = wb.Sheets[name]
-  const rows = XLSX.utils.sheet_to_json<RawRow>(ws, { defval: '' })
-  const headers = rows.length > 0 ? Object.keys(rows[0]) : []
-  return { headers, rows, sheetNames: wb.SheetNames }
+  const wb = new Workbook()
+  await wb.xlsx.load(await file.arrayBuffer())
+  const sheetNames = wb.worksheets.map((w) => w.name)
+  const ws = (sheetName && wb.getWorksheet(sheetName)) || wb.worksheets[0]
+  if (!ws) return { headers: [], rows: [], sheetNames }
+
+  // Header row, deduplicating repeats ("Date", "Date_1", …)
+  const headers: string[] = []
+  const seen = new Map<string, number>()
+  ws.getRow(1).eachCell({ includeEmpty: true }, (cell, col) => {
+    let name = String(plainValue(cell.value) ?? '').trim() || `Column ${col}`
+    const n = seen.get(name) ?? 0
+    seen.set(name, n + 1)
+    if (n > 0) name = `${name}_${n}`
+    headers[col - 1] = name
+  })
+
+  const rows: RawRow[] = []
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r)
+    const obj: RawRow = {}
+    let hasValue = false
+    headers.forEach((h, idx) => {
+      const v = plainValue(row.getCell(idx + 1).value)
+      obj[h] = v ?? ''
+      if (v != null && v !== '') hasValue = true
+    })
+    if (hasValue) rows.push(obj)
+  }
+  return { headers, rows, sheetNames }
+}
+
+/** Flatten exceljs cell values (formulas, rich text, hyperlinks) to primitives/Dates. */
+function plainValue(v: CellValue): unknown {
+  if (v == null || typeof v !== 'object' || v instanceof Date) return v
+  if ('result' in v) return v.result ?? null
+  if ('richText' in v) return v.richText.map((t) => t.text).join('')
+  if ('text' in v) return v.text
+  if ('error' in v) return null
+  return v
 }
 
 /** Accepts Date, Excel serials, dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, "5 Jan 2024" etc. Returns YYYY-MM-DD or null. */
