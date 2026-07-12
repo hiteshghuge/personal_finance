@@ -128,8 +128,8 @@ export interface ColumnMapping {
 }
 
 export interface MappedRow {
-  tx: Omit<NewTransaction, 'payment_method_id' | 'category_id' | 'person_id'> & {
-    categoryName: string | null
+  tx: Omit<NewTransaction, 'payment_method_id' | 'tag_ids' | 'person_id'> & {
+    categoryNames: string[]
     methodName: string | null
     personName: string | null
   }
@@ -182,7 +182,12 @@ export function mapRows(rows: RawRow[], mapping: ColumnMapping, negativeIsIncome
         amount,
         type,
         note: str(mapping.note),
-        categoryName: str(mapping.category),
+        // Several tags in one cell, separated by comma or semicolon
+        // (slash is NOT a separator — tags like "Hotel/FastFood" stay whole)
+        categoryNames: (str(mapping.category) ?? '')
+          .split(/[,;]/)
+          .map((s) => s.trim())
+          .filter(Boolean),
         methodName: viaCreditCard ? 'Credit Card' : str(mapping.method),
         personName,
       },

@@ -17,7 +17,7 @@ describe('DemoStore person balances', () => {
     amount,
     type,
     payment_method_id: null,
-    category_id: null,
+    tag_ids: [],
     person_id: personId,
     note: null,
   })
@@ -62,7 +62,7 @@ describe('DemoStore transactions', () => {
       amount: 10,
       type: 'expense',
       payment_method_id: null,
-      category_id: null,
+      tag_ids: [],
       person_id: null,
       note: 'dir test',
     })
