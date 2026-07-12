@@ -18,7 +18,8 @@ const FIELDS: Array<{ key: keyof ColumnMapping; label: string; required?: boolea
   { key: 'method', label: 'Payment method' },
   { key: 'person', label: 'Person (borrow/lend)' },
   { key: 'note', label: 'Note / Description' },
-  { key: 'type', label: 'Type (expense/income/lend/…)' },
+  { key: 'type', label: 'Type (debited/credited/lend/…)' },
+  { key: 'creditCard', label: 'Credit-card amount (if separate column)' },
 ]
 
 export default function ImportPage() {

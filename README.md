@@ -44,6 +44,13 @@ Push this repo to GitHub, then on [vercel.com](https://vercel.com): **New Projec
 
 > Netlify / Cloudflare Pages work the same way. For client-side routing add a SPA fallback (Vercel handles it via `vercel.json` included here).
 
+## Tests & CI
+
+- `npm test` — Vitest unit tests covering the sheet-import parsing (dates, amounts, debited/credited mapping, column auto-guessing, credit-card fallback), formatting helpers, and borrow/lend balance arithmetic.
+- GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR:
+  - **Build & unit tests** — `npm ci`, `npm test`, typecheck + production build (artifact uploaded).
+  - **Vulnerability scanning** — package level: `npm audit` (fails on high+ in production deps) and Google OSV-Scanner on the lockfile; code level: Semgrep with the `p/default`, `p/react`, and `p/typescript` rulesets (fails the build on findings).
+
 ## Demo mode
 
 Run without any Supabase setup:

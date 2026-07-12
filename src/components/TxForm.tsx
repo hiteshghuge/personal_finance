@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { getStore } from '../lib/store'
 import { useData } from '../lib/useData'
 import { todayISO } from '../lib/format'
+import SearchCreatePicker from './SearchCreatePicker'
 import { PERSON_TX_TYPES, TX_TYPE_LABELS, type NewTransaction, type Transaction, type TxType } from '../types'
 
 const TYPE_ORDER: TxType[] = ['expense', 'income', 'lend', 'borrow', 'repay_out', 'repay_in']
@@ -13,8 +14,8 @@ interface Props {
 }
 
 export default function TxForm({ initial, onSaved, onCancel }: Props) {
-  const { data: methods } = useData((s) => s.listPaymentMethods())
-  const { data: categories } = useData((s) => s.listCategories())
+  const { data: methods, reload: reloadMethods } = useData((s) => s.listPaymentMethods())
+  const { data: categories, reload: reloadCategories } = useData((s) => s.listCategories())
   const { data: people, reload: reloadPeople } = useData((s) => s.listPeople())
 
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '')
@@ -36,9 +37,24 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMethods.length])
 
-  async function addPerson() {
-    const name = prompt('Person name?')?.trim()
-    if (!name) return
+  const CATEGORY_PALETTE = ['#3987e5', '#e66767', '#c98500', '#199e70', '#9085e9', '#d55181', '#d95926', '#008300']
+
+  async function createCategory(name: string) {
+    const store = await getStore()
+    const c = await store.createCategory(name, CATEGORY_PALETTE[(categories?.length ?? 0) % CATEGORY_PALETTE.length])
+    reloadCategories()
+    setCategoryId(c.id)
+  }
+
+  async function createMethod(name: string) {
+    const kind = /upi|gpay|phonepe|paytm/i.test(name) ? 'upi' : /card/i.test(name) ? 'card' : /cash/i.test(name) ? 'cash' : 'other'
+    const store = await getStore()
+    const m = await store.createPaymentMethod(name, kind)
+    reloadMethods()
+    setMethodId(m.id)
+  }
+
+  async function createPerson(name: string) {
     const store = await getStore()
     const p = await store.createPerson(name)
     reloadPeople()
@@ -105,37 +121,34 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
       </div>
 
       <Section label="Paid via">
-        <div className="flex flex-wrap gap-2">
-          {activeMethods.map((m) => (
-            <Chip key={m.id} active={methodId === m.id} onClick={() => setMethodId(m.id)}>
-              {m.name}
-            </Chip>
-          ))}
-        </div>
+        <SearchCreatePicker
+          items={activeMethods}
+          selectedId={methodId}
+          onSelect={setMethodId}
+          onCreate={createMethod}
+          placeholder="Search or add payment method…"
+        />
       </Section>
 
       {personTx ? (
         <Section label="Person">
-          <div className="flex flex-wrap gap-2">
-            {(people ?? []).map((p) => (
-              <Chip key={p.id} active={personId === p.id} onClick={() => setPersonId(p.id)}>
-                {p.name}
-              </Chip>
-            ))}
-            <Chip active={false} onClick={addPerson}>
-              + New person
-            </Chip>
-          </div>
+          <SearchCreatePicker
+            items={people ?? []}
+            selectedId={personId}
+            onSelect={setPersonId}
+            onCreate={createPerson}
+            placeholder="Search or add person…"
+          />
         </Section>
       ) : (
         <Section label="Category">
-          <div className="flex flex-wrap gap-2">
-            {(categories ?? []).map((c) => (
-              <Chip key={c.id} active={categoryId === c.id} onClick={() => setCategoryId(c.id)} dotColor={c.color}>
-                {c.name}
-              </Chip>
-            ))}
-          </div>
+          <SearchCreatePicker
+            items={categories ?? []}
+            selectedId={categoryId}
+            onSelect={setCategoryId}
+            onCreate={createCategory}
+            placeholder="Search or add tag…"
+          />
         </Section>
       )}
 
