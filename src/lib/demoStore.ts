@@ -74,7 +74,7 @@ export class DemoStore implements DataStore {
         amount: 55000,
         type: 'income',
         payment_method_id: method('Debit Card'),
-        category_id: cat('Salary'),
+        tag_ids: [cat('Salary')],
         person_id: null,
         note: 'salary',
       })
@@ -86,7 +86,7 @@ export class DemoStore implements DataStore {
           amount: amount + ((i * 37) % 200),
           type: 'expense',
           payment_method_id: method(m),
-          category_id: cat(c),
+          tag_ids: [cat(c)],
           person_id: null,
           note,
         })
@@ -98,11 +98,11 @@ export class DemoStore implements DataStore {
     const ym3 = `${m3.getFullYear()}-${String(m3.getMonth() + 1).padStart(2, '0')}`
     const m1 = new Date(now.getFullYear(), now.getMonth() - 1, 20)
     const ym1 = `${m1.getFullYear()}-${String(m1.getMonth() + 1).padStart(2, '0')}`
-    this.push({ occurred_on: `${ym3}-10`, amount: 5000, type: 'lend', payment_method_id: method('GPay'), category_id: null, person_id: person('Rahul'), note: 'emergency' })
-    this.push({ occurred_on: `${ym1}-20`, amount: 2000, type: 'repay_in', payment_method_id: method('GPay'), category_id: null, person_id: person('Rahul'), note: 'part repayment' })
-    this.push({ occurred_on: `${ym3}-15`, amount: 3000, type: 'borrow', payment_method_id: method('Cash'), category_id: null, person_id: person('Mom'), note: 'for trip' })
-    this.push({ occurred_on: `${ym1}-05`, amount: 3000, type: 'repay_out', payment_method_id: method('GPay'), category_id: null, person_id: person('Mom'), note: 'returned' })
-    this.push({ occurred_on: `${ym1}-25`, amount: 1500, type: 'lend', payment_method_id: method('PhonePe'), category_id: null, person_id: person('Amit'), note: 'movie + dinner' })
+    this.push({ occurred_on: `${ym3}-10`, amount: 5000, type: 'lend', payment_method_id: method('GPay'), tag_ids: [], person_id: person('Rahul'), note: 'emergency' })
+    this.push({ occurred_on: `${ym1}-20`, amount: 2000, type: 'repay_in', payment_method_id: method('GPay'), tag_ids: [], person_id: person('Rahul'), note: 'part repayment' })
+    this.push({ occurred_on: `${ym3}-15`, amount: 3000, type: 'borrow', payment_method_id: method('Cash'), tag_ids: [], person_id: person('Mom'), note: 'for trip' })
+    this.push({ occurred_on: `${ym1}-05`, amount: 3000, type: 'repay_out', payment_method_id: method('GPay'), tag_ids: [], person_id: person('Mom'), note: 'returned' })
+    this.push({ occurred_on: `${ym1}-25`, amount: 1500, type: 'lend', payment_method_id: method('PhonePe'), tag_ids: [], person_id: person('Amit'), note: 'movie + dinner' })
   }
 
   private push(tx: Omit<NewTransaction, 'type'> & { type: TxType }) {
@@ -163,7 +163,7 @@ export class DemoStore implements DataStore {
     let rows = this.txs.filter((t) => {
       if (filter.from && t.occurred_on < filter.from) return false
       if (filter.to && t.occurred_on > filter.to) return false
-      if (filter.categoryId && t.category_id !== filter.categoryId) return false
+      if (filter.categoryId && !t.tag_ids.includes(filter.categoryId)) return false
       if (filter.methodId && t.payment_method_id !== filter.methodId) return false
       if (filter.personId && t.person_id !== filter.personId) return false
       if (filter.type && t.type !== filter.type) return false

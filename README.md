@@ -4,7 +4,8 @@ A mobile-friendly PWA to track every rupee — expenses across GPay / PhonePe / 
 
 ## Features
 
-- **Quick Add** — thumb-friendly entry: amount, type, payment-method & category chips, optional person, note, date.
+- **Quick Add** — thumb-friendly entry: amount, type, payment-method chips, **multiple tags per transaction** with type-ahead search (create new tags inline), optional person, note, date.
+- **Default tags & methods auto-created on first login** — home, lunch, dinner, hotel, travel, fastfood, petrol, misc + gpay/phonepe/imobile/cards/cash.
 - **History** — filter by month, type, category, payment method; search notes; edit/delete anything.
 - **Analytics** — monthly spend + vs-previous delta, 12-month trend, category breakdown, payment-method split, borrow/lend balances.
 - **People** — who owes you, whom you owe, full per-person history (`lend`, `borrow`, `repay` both ways).

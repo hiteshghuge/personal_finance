@@ -76,12 +76,20 @@ export default function Analytics() {
   )
 
   const byCategory = useMemo(() => {
+    // A transaction counts its full amount under each of its tags,
+    // so a multi-tagged spend shows in every tag it carries.
     const map = new Map<string | null, number>()
-    for (const t of expenses) map.set(t.category_id, (map.get(t.category_id) ?? 0) + t.amount)
+    for (const t of expenses) {
+      if (t.tag_ids.length === 0) {
+        map.set(null, (map.get(null) ?? 0) + t.amount)
+      } else {
+        for (const id of t.tag_ids) map.set(id, (map.get(id) ?? 0) + t.amount)
+      }
+    }
     const catMap = new Map((categories ?? []).map((c) => [c.id, c]))
     return [...map.entries()]
       .map(([id, total]) => ({
-        name: id ? (catMap.get(id)?.name ?? 'Unknown') : 'Uncategorised',
+        name: id ? (catMap.get(id)?.name ?? 'Unknown') : 'Untagged',
         color: id ? (catMap.get(id)?.color ?? '#64748b') : '#64748b',
         total,
       }))

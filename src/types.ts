@@ -42,7 +42,8 @@ export interface Transaction {
   type: TxType
   direction: Direction
   payment_method_id: string | null
-  category_id: string | null
+  /** Tags on this transaction (many-to-many via transaction_tags) */
+  tag_ids: string[]
   person_id: string | null
   note: string | null
   created_at: string
@@ -53,6 +54,7 @@ export type NewTransaction = Omit<Transaction, 'id' | 'direction' | 'created_at'
 export interface TxFilter {
   from?: string
   to?: string
+  /** Matches transactions carrying this tag (among possibly several) */
   categoryId?: string
   methodId?: string
   personId?: string

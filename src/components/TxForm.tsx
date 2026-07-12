@@ -21,7 +21,7 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '')
   const [type, setType] = useState<TxType>(initial?.type ?? 'expense')
   const [methodId, setMethodId] = useState<string | null>(initial?.payment_method_id ?? null)
-  const [categoryId, setCategoryId] = useState<string | null>(initial?.category_id ?? null)
+  const [tagIds, setTagIds] = useState<string[]>(initial?.tag_ids ?? [])
   const [personId, setPersonId] = useState<string | null>(initial?.person_id ?? null)
   const [note, setNote] = useState(initial?.note ?? '')
   const [date, setDate] = useState(initial?.occurred_on ?? todayISO())
@@ -43,7 +43,11 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
     const store = await getStore()
     const c = await store.createCategory(name, CATEGORY_PALETTE[(categories?.length ?? 0) % CATEGORY_PALETTE.length])
     reloadCategories()
-    setCategoryId(c.id)
+    setTagIds((ids) => [...ids, c.id])
+  }
+
+  function toggleTag(id: string) {
+    setTagIds((ids) => (ids.includes(id) ? ids.filter((t) => t !== id) : [...ids, id]))
   }
 
   async function createMethod(name: string) {
@@ -79,7 +83,7 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
       amount: amt,
       type,
       payment_method_id: methodId,
-      category_id: personTx ? null : categoryId,
+      tag_ids: personTx ? [] : tagIds,
       person_id: personTx ? personId : null,
       note: note.trim() || null,
     }
@@ -123,8 +127,8 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
       <Section label="Paid via">
         <SearchCreatePicker
           items={activeMethods}
-          selectedId={methodId}
-          onSelect={setMethodId}
+          selectedIds={methodId ? [methodId] : []}
+          onToggle={setMethodId}
           onCreate={createMethod}
           placeholder="Search or add payment method…"
         />
@@ -134,18 +138,18 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
         <Section label="Person">
           <SearchCreatePicker
             items={people ?? []}
-            selectedId={personId}
-            onSelect={setPersonId}
+            selectedIds={personId ? [personId] : []}
+            onToggle={setPersonId}
             onCreate={createPerson}
             placeholder="Search or add person…"
           />
         </Section>
       ) : (
-        <Section label="Category">
+        <Section label="Tags (pick any number)">
           <SearchCreatePicker
             items={categories ?? []}
-            selectedId={categoryId}
-            onSelect={setCategoryId}
+            selectedIds={tagIds}
+            onToggle={toggleTag}
             onCreate={createCategory}
             placeholder="Search or add tag…"
           />

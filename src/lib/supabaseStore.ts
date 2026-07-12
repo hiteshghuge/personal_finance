@@ -84,10 +84,13 @@ export class SupabaseStore implements DataStore {
   }
 
   async listTransactions(filter: TxFilter): Promise<{ rows: Transaction[]; total: number }> {
-    let q = this.db.from('transactions').select('*', { count: 'exact' })
+    // Filtering by tag needs an inner join so only matching transactions survive;
+    // otherwise a left join brings every transaction with all its tags.
+    const tagJoin = filter.categoryId ? 'transaction_tags!inner(category_id)' : 'transaction_tags(category_id)'
+    let q = this.db.from('transactions').select(`*, ${tagJoin}`, { count: 'exact' })
+    if (filter.categoryId) q = q.eq('transaction_tags.category_id', filter.categoryId)
     if (filter.from) q = q.gte('occurred_on', filter.from)
     if (filter.to) q = q.lte('occurred_on', filter.to)
-    if (filter.categoryId) q = q.eq('category_id', filter.categoryId)
     if (filter.methodId) q = q.eq('payment_method_id', filter.methodId)
     if (filter.personId) q = q.eq('person_id', filter.personId)
     if (filter.type) q = q.eq('type', filter.type)
@@ -98,17 +101,58 @@ export class SupabaseStore implements DataStore {
     q = q.range(offset, offset + limit - 1)
     const { data, error, count } = await q
     throwIf(error)
-    return { rows: (data ?? []).map(normalizeTx), total: count ?? 0 }
+    let rows = (data ?? []).map(normalizeTx)
+    if (filter.categoryId) {
+      // The inner join only returned the matching tag row; refetch full tag
+      // lists for the page so chips render completely.
+      rows = await this.attachAllTags(rows)
+    }
+    return { rows, total: count ?? 0 }
+  }
+
+  private async attachAllTags(rows: Transaction[]): Promise<Transaction[]> {
+    if (rows.length === 0) return rows
+    const ids = rows.map((r) => r.id)
+    const { data, error } = await this.db
+      .from('transaction_tags')
+      .select('transaction_id, category_id')
+      .in('transaction_id', ids)
+    throwIf(error)
+    const byTx = new Map<string, string[]>()
+    for (const row of data ?? []) {
+      const list = byTx.get(row.transaction_id) ?? []
+      list.push(row.category_id)
+      byTx.set(row.transaction_id, list)
+    }
+    return rows.map((r) => ({ ...r, tag_ids: byTx.get(r.id) ?? [] }))
   }
 
   async createTransaction(tx: NewTransaction): Promise<Transaction> {
-    const { data, error } = await this.db.from('transactions').insert(tx).select().single()
+    const { tag_ids, ...row } = tx
+    const { data, error } = await this.db.from('transactions').insert(row).select().single()
     throwIf(error)
-    return normalizeTx(data)
+    await this.setTags(data.id, tag_ids)
+    return { ...normalizeTx(data), tag_ids }
   }
 
   async updateTransaction(id: string, patch: Partial<NewTransaction>): Promise<void> {
-    const { error } = await this.db.from('transactions').update(patch).eq('id', id)
+    const { tag_ids, ...row } = patch
+    if (Object.keys(row).length > 0) {
+      const { error } = await this.db.from('transactions').update(row).eq('id', id)
+      throwIf(error)
+    }
+    if (tag_ids) {
+      const { error } = await this.db.from('transaction_tags').delete().eq('transaction_id', id)
+      throwIf(error)
+      await this.setTags(id, tag_ids)
+    }
+  }
+
+  private async setTags(transactionId: string, tagIds: string[]): Promise<void> {
+    if (tagIds.length === 0) return
+    const { error } = await this.db
+      .from('transaction_tags')
+      .insert(tagIds.map((category_id) => ({ transaction_id: transactionId, category_id })))
     throwIf(error)
   }
 
@@ -118,13 +162,22 @@ export class SupabaseStore implements DataStore {
   }
 
   async bulkInsertTransactions(txs: NewTransaction[]): Promise<number> {
-    // Insert in chunks to stay under request size limits.
     let inserted = 0
     for (let i = 0; i < txs.length; i += 500) {
       const chunk = txs.slice(i, i + 500)
-      const { error, count } = await this.db.from('transactions').insert(chunk, { count: 'exact' })
+      const { data, error } = await this.db
+        .from('transactions')
+        .insert(chunk.map(({ tag_ids: _tags, ...row }) => row))
+        .select('id')
       throwIf(error)
-      inserted += count ?? chunk.length
+      const joins = (data ?? []).flatMap((row, idx) =>
+        chunk[idx].tag_ids.map((category_id) => ({ transaction_id: row.id, category_id })),
+      )
+      if (joins.length > 0) {
+        const { error: tagError } = await this.db.from('transaction_tags').insert(joins)
+        throwIf(tagError)
+      }
+      inserted += data?.length ?? chunk.length
     }
     return inserted
   }
@@ -137,5 +190,11 @@ export class SupabaseStore implements DataStore {
 }
 
 function normalizeTx(row: Record<string, unknown>): Transaction {
-  return { ...(row as unknown as Transaction), amount: Number(row.amount) }
+  const joins = (row.transaction_tags ?? []) as Array<{ category_id: string }>
+  const { transaction_tags: _joins, ...rest } = row
+  return {
+    ...(rest as unknown as Transaction),
+    amount: Number(row.amount),
+    tag_ids: joins.map((j) => j.category_id),
+  }
 }

@@ -10,14 +10,21 @@ interface Props {
 }
 
 export default function TxRow({ tx, categories, methods, people, onClick }: Props) {
-  const cat = tx.category_id ? categories.get(tx.category_id) : null
+  const tags = tx.tag_ids.map((id) => categories.get(id)).filter(Boolean) as NonNullable<
+    ReturnType<typeof categories.get>
+  >[]
+  const cat = tags[0] ?? null
   const person = tx.person_id ? people.get(tx.person_id) : null
   const method = tx.payment_method_id ? methods.get(tx.payment_method_id) : null
   const isOut = tx.direction === 'out'
 
   const title = person
     ? `${TX_TYPE_LABELS[tx.type]} · ${person.name}`
-    : (cat?.name ?? (tx.type === 'income' ? 'Income' : 'Uncategorised'))
+    : tags.length > 0
+      ? tags.map((t) => t.name).join(' · ')
+      : tx.type === 'income'
+        ? 'Income'
+        : 'Untagged'
 
   return (
     <button

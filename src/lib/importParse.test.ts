@@ -140,7 +140,7 @@ describe('mapRows', () => {
       occurred_on: '2023-01-01',
       amount: 100,
       type: 'expense',
-      categoryName: 'home',
+      categoryNames: ['home'],
       methodName: 'gpay',
       note: 'thing',
     })
@@ -188,6 +188,15 @@ describe('mapRows', () => {
     expect(good.error).toBeNull()
     expect(good.tx.type).toBe('lend')
     expect(good.tx.personName).toBe('Rahul')
+  })
+
+  it('splits comma/semicolon tags but keeps slashes whole', () => {
+    const [r] = mapRows([row({ Tags: 'hotel, travel; dinner' })], mapping, true)
+    expect(r.tx.categoryNames).toEqual(['hotel', 'travel', 'dinner'])
+    const [slash] = mapRows([row({ Tags: 'Hotel/FastFood' })], mapping, true)
+    expect(slash.tx.categoryNames).toEqual(['Hotel/FastFood'])
+    const [empty] = mapRows([row({ Tags: '' })], mapping, true)
+    expect(empty.tx.categoryNames).toEqual([])
   })
 
   it('treats unmarked negative amounts per the toggle', () => {

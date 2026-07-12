@@ -93,12 +93,17 @@ export default function ImportPage() {
 
       const txs: NewTransaction[] = []
       for (const r of good) {
+        const tagIds: string[] = []
+        for (const name of r.tx.categoryNames) {
+          const id = await categoryId(name)
+          if (id && !tagIds.includes(id)) tagIds.push(id)
+        }
         txs.push({
           occurred_on: r.tx.occurred_on,
           amount: r.tx.amount,
           type: r.tx.type,
           note: r.tx.note,
-          category_id: await categoryId(r.tx.categoryName),
+          tag_ids: tagIds,
           payment_method_id: await methodId(r.tx.methodName),
           person_id: await personId(r.tx.personName),
         })
@@ -202,7 +207,7 @@ export default function ImportPage() {
                           <td className="py-1 pr-3 whitespace-nowrap">{r.tx.occurred_on || '—'}</td>
                           <td className="py-1 pr-3">{r.tx.amount ? formatINR(r.tx.amount) : '—'}</td>
                           <td className="py-1 pr-3">{r.tx.type}</td>
-                          <td className="py-1 pr-3">{r.tx.categoryName ?? '—'}</td>
+                          <td className="py-1 pr-3">{r.tx.categoryNames.join(', ') || '—'}</td>
                           <td className="py-1 pr-3">{r.tx.methodName ?? '—'}</td>
                           <td className="max-w-32 truncate py-1">{r.error ?? r.tx.note ?? ''}</td>
                         </tr>
