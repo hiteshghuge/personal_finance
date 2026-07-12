@@ -2,12 +2,14 @@ import { getSupabase } from './supabase'
 import type { DataStore } from './store'
 import type {
   Category,
+  CreditCard,
   NewTransaction,
   PaymentMethod,
   Person,
   PersonBalance,
   Transaction,
   TxFilter,
+  UserSettings,
 } from '../types'
 
 function throwIf(error: { message: string } | null): void {
@@ -186,6 +188,43 @@ export class SupabaseStore implements DataStore {
     const { data, error } = await this.db.from('person_balances').select('person_id, name, balance')
     throwIf(error)
     return (data ?? []).map((r) => ({ ...r, balance: Number(r.balance) }))
+  }
+
+  async getSettings(): Promise<UserSettings> {
+    const { data, error } = await this.db.from('user_settings').select('salary_day').maybeSingle()
+    throwIf(error)
+    return { salary_day: data?.salary_day ?? null }
+  }
+
+  async updateSettings(patch: Partial<UserSettings>): Promise<void> {
+    const { data: session } = await this.db.auth.getSession()
+    const userId = session.session?.user.id
+    const { error } = await this.db
+      .from('user_settings')
+      .upsert({ user_id: userId, ...patch, updated_at: new Date().toISOString() })
+    throwIf(error)
+  }
+
+  async listCreditCards(): Promise<CreditCard[]> {
+    const { data, error } = await this.db.from('credit_cards').select('*').order('name')
+    throwIf(error)
+    return data ?? []
+  }
+
+  async createCreditCard(card: Omit<CreditCard, 'id'>): Promise<CreditCard> {
+    const { data, error } = await this.db.from('credit_cards').insert(card).select().single()
+    throwIf(error)
+    return data
+  }
+
+  async updateCreditCard(id: string, patch: Partial<Omit<CreditCard, 'id'>>): Promise<void> {
+    const { error } = await this.db.from('credit_cards').update(patch).eq('id', id)
+    throwIf(error)
+  }
+
+  async deleteCreditCard(id: string): Promise<void> {
+    const { error } = await this.db.from('credit_cards').delete().eq('id', id)
+    throwIf(error)
   }
 }
 

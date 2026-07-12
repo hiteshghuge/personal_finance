@@ -1,11 +1,13 @@
 import type {
   Category,
+  CreditCard,
   NewTransaction,
   PaymentMethod,
   Person,
   PersonBalance,
   Transaction,
   TxFilter,
+  UserSettings,
 } from '../types'
 
 export interface DataStore {
@@ -31,6 +33,14 @@ export interface DataStore {
   bulkInsertTransactions(txs: NewTransaction[]): Promise<number>
 
   personBalances(): Promise<PersonBalance[]>
+
+  getSettings(): Promise<UserSettings>
+  updateSettings(patch: Partial<UserSettings>): Promise<void>
+
+  listCreditCards(): Promise<CreditCard[]>
+  createCreditCard(card: Omit<CreditCard, 'id'>): Promise<CreditCard>
+  updateCreditCard(id: string, patch: Partial<Omit<CreditCard, 'id'>>): Promise<void>
+  deleteCreditCard(id: string): Promise<void>
 }
 
 export const IS_DEMO = import.meta.env.VITE_DEMO === '1'

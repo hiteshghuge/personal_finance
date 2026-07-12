@@ -10,6 +10,7 @@ A mobile-friendly PWA to track every rupee — expenses across GPay / PhonePe / 
 - **Analytics** — monthly spend + vs-previous delta, 12-month trend, category breakdown, payment-method split, borrow/lend balances.
 - **People** — who owes you, whom you owe, full per-person history (`lend`, `borrow`, `repay` both ways).
 - **Import** — upload your Google Sheet as `.xlsx`/`.csv`, map columns, preview, bulk import. Unknown tags/methods/people are created automatically.
+- **Settings → Configure** — payment methods, an optional **salary cycle** (set your pay day and Analytics gains salary-day-to-salary-day "This cycle / Last cycle" views), and **credit-card billing cycles** (statement + due day per card, with live next-due-date countdown; due notifications are on the backlog).
 - **PWA** — add to home screen, works like an app.
 
 ## Stack
