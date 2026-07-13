@@ -45,7 +45,11 @@ export default function Settings() {
 
       <h2 className="mb-3 text-xs font-semibold tracking-widest text-slate-500 uppercase">Configure</h2>
 
-      <Section title="Payment methods" action={{ label: '+ Add', onClick: addMethod }}>
+      <Section
+        title="Payment methods"
+        summary={`${(methods ?? []).filter((m) => m.is_active).length} active`}
+        action={{ label: '+ Add', onClick: addMethod }}
+      >
         {(methods ?? []).map((m) => (
           <div key={m.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-800/60">
             <span className={`flex-1 text-sm ${m.is_active ? '' : 'text-slate-500 line-through'}`}>
@@ -99,8 +103,13 @@ function SalaryCycleCard() {
 
   const input = 'rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm outline-none focus:border-sky-500'
 
+  const summary =
+    settings?.salary_day != null
+      ? `${ordinal(settings.salary_day)}${settings.salary_bank ? ` · ${settings.salary_bank}` : ''}`
+      : 'not set'
+
   return (
-    <Section title="Salary cycle">
+    <Section title="Salary cycle" summary={summary}>
       <p className="mb-3 px-2 text-xs text-slate-400">
         Optional. Set the day of the month your salary lands and Analytics gains "This cycle / Last
         cycle" views that run salary-day to salary-day instead of calendar months.
@@ -173,7 +182,11 @@ function CreditCardsCard() {
   }
 
   return (
-    <Section title="Credit cards" action={{ label: adding ? 'Close' : '+ Add card', onClick: () => { setAdding(!adding); setEditing(null) } }}>
+    <Section
+      title="Credit cards"
+      summary={`${(cards ?? []).length} card${(cards ?? []).length === 1 ? '' : 's'}`}
+      action={{ label: adding ? 'Close' : '+ Add card', onClick: () => { setAdding(!adding); setEditing(null) } }}
+    >
       <p className="mb-2 px-2 text-xs text-slate-400">
         Add each card's billing cycle to see upcoming due dates (payment reminders coming later).
       </p>
@@ -272,24 +285,44 @@ function ordinal(n: number): string {
 
 function Section({
   title,
+  summary,
   action,
+  defaultOpen = false,
   children,
 }: {
   title: string
+  /** Short status shown next to the title while collapsed */
+  summary?: string
   action?: { label: string; onClick: () => void }
+  defaultOpen?: boolean
   children: React.ReactNode
 }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="mb-5">
-      <div className="mb-1 flex items-center justify-between">
-        <p className="text-xs font-medium tracking-wide text-slate-400 uppercase">{title}</p>
+    <div className="mb-3 rounded-xl border border-slate-800 bg-slate-800/50">
+      <div className="flex items-center gap-2 px-3 py-3">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          aria-expanded={open}
+        >
+          <span className={`text-xs text-slate-500 transition-transform ${open ? 'rotate-90' : ''}`}>▶</span>
+          <span className="text-xs font-medium tracking-wide text-slate-300 uppercase">{title}</span>
+          {!open && summary && <span className="truncate text-xs text-slate-500">· {summary}</span>}
+        </button>
         {action && (
-          <button onClick={action.onClick} className="text-xs font-semibold text-sky-400">
+          <button
+            onClick={() => {
+              setOpen(true)
+              action.onClick()
+            }}
+            className="shrink-0 text-xs font-semibold text-sky-400"
+          >
             {action.label}
           </button>
         )}
       </div>
-      <div className="rounded-xl border border-slate-800 bg-slate-800/50 p-2">{children}</div>
+      {open && <div className="px-2 pb-2">{children}</div>}
     </div>
   )
 }
