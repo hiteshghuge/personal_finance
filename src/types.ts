@@ -67,6 +67,8 @@ export interface TxFilter {
 export interface UserSettings {
   /** Day of month salary lands (1-31); null = not configured */
   salary_day: number | null
+  /** Bank the salary lands in — a display name only, optional */
+  salary_bank: string | null
 }
 
 export interface CreditCard {

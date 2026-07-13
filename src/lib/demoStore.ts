@@ -207,7 +207,7 @@ export class DemoStore implements DataStore {
     return txs.length
   }
 
-  private settings: UserSettings = { salary_day: 6 }
+  private settings: UserSettings = { salary_day: 6, salary_bank: 'ICICI' }
   private creditCards: CreditCard[] = [
     { id: uid(), name: 'HDFC Millennia', statement_day: 16, due_day: 5 },
     { id: uid(), name: 'ICICI Amazon Pay', statement_day: 28, due_day: 15 },

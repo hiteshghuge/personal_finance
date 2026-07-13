@@ -75,10 +75,12 @@ export default function Settings() {
 function SalaryCycleCard() {
   const { data: settings, reload } = useData((s) => s.getSettings())
   const [day, setDay] = useState('')
+  const [bank, setBank] = useState('')
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
     setDay(settings?.salary_day ? String(settings.salary_day) : '')
+    setBank(settings?.salary_bank ?? '')
   }, [settings])
 
   async function save(e: FormEvent) {
@@ -86,11 +88,16 @@ function SalaryCycleCard() {
     const n = Number(day)
     if (day !== '' && (!Number.isInteger(n) || n < 1 || n > 31)) return
     const store = await getStore()
-    await store.updateSettings({ salary_day: day === '' ? null : n })
+    await store.updateSettings({
+      salary_day: day === '' ? null : n,
+      salary_bank: bank.trim() || null,
+    })
     reload()
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
+
+  const input = 'rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm outline-none focus:border-sky-500'
 
   return (
     <Section title="Salary cycle">
@@ -98,37 +105,54 @@ function SalaryCycleCard() {
         Optional. Set the day of the month your salary lands and Analytics gains "This cycle / Last
         cycle" views that run salary-day to salary-day instead of calendar months.
       </p>
-      <form onSubmit={save} className="flex items-center gap-2 px-2 pb-1">
-        <label className="text-sm text-slate-300" htmlFor="salary-day">
-          Salary day of month
-        </label>
-        <input
-          id="salary-day"
-          inputMode="numeric"
-          placeholder="—"
-          value={day}
-          onChange={(e) => setDay(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
-          className="w-16 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-center text-sm outline-none focus:border-sky-500"
-        />
-        <button className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-white">Save</button>
-        {settings?.salary_day != null && (
-          <button
-            type="button"
-            onClick={async () => {
-              const store = await getStore()
-              await store.updateSettings({ salary_day: null })
-              reload()
-            }}
-            className="text-xs text-slate-400"
-          >
-            Clear
-          </button>
-        )}
-        {saved && <span className="text-xs text-emerald-400">Saved ✓</span>}
+      <form onSubmit={save} className="space-y-2 px-2 pb-1">
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-300" htmlFor="salary-day">
+            Salary day of month
+          </label>
+          <input
+            id="salary-day"
+            inputMode="numeric"
+            placeholder="—"
+            value={day}
+            onChange={(e) => setDay(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))}
+            className={`${input} w-16 text-center`}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-slate-300" htmlFor="salary-bank">
+            Bank (optional)
+          </label>
+          <input
+            id="salary-bank"
+            placeholder="e.g. ICICI"
+            value={bank}
+            onChange={(e) => setBank(e.target.value)}
+            className={`${input} flex-1`}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <button className="rounded-lg bg-sky-500 px-3 py-1.5 text-sm font-semibold text-white">Save</button>
+          {settings?.salary_day != null && (
+            <button
+              type="button"
+              onClick={async () => {
+                const store = await getStore()
+                await store.updateSettings({ salary_day: null, salary_bank: null })
+                reload()
+              }}
+              className="text-xs text-slate-400"
+            >
+              Clear
+            </button>
+          )}
+          {saved && <span className="text-xs text-emerald-400">Saved ✓</span>}
+        </div>
       </form>
       {settings?.salary_day != null && (
         <p className="px-2 pb-1 text-xs text-emerald-400">
-          Active: cycles run from the {ordinal(settings.salary_day)} to the {ordinal(settings.salary_day)}.
+          Active: cycles run from the {ordinal(settings.salary_day)} to the {ordinal(settings.salary_day)}
+          {settings.salary_bank ? ` · salary lands in ${settings.salary_bank}` : ''}.
         </p>
       )}
     </Section>
@@ -138,6 +162,7 @@ function SalaryCycleCard() {
 function CreditCardsCard() {
   const { data: cards, reload } = useData((s) => s.listCreditCards())
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<CreditCard | null>(null)
   const today = new Date()
 
   async function remove(card: CreditCard) {
@@ -148,7 +173,7 @@ function CreditCardsCard() {
   }
 
   return (
-    <Section title="Credit cards" action={{ label: adding ? 'Close' : '+ Add card', onClick: () => setAdding(!adding) }}>
+    <Section title="Credit cards" action={{ label: adding ? 'Close' : '+ Add card', onClick: () => { setAdding(!adding); setEditing(null) } }}>
       <p className="mb-2 px-2 text-xs text-slate-400">
         Add each card's billing cycle to see upcoming due dates (payment reminders coming later).
       </p>
@@ -159,6 +184,9 @@ function CreditCardsCard() {
       {(cards ?? []).map((card) => {
         const due = nextDueDate(card.due_day, today)
         const days = daysUntil(due, today)
+        if (editing?.id === card.id) {
+          return <CardForm key={card.id} initial={card} onDone={() => { setEditing(null); reload() }} onCancel={() => setEditing(null)} />
+        }
         return (
           <div key={card.id} className="flex items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-slate-800/60">
             <div className="min-w-0 flex-1">
@@ -173,6 +201,7 @@ function CreditCardsCard() {
                 {days === 0 ? 'due today' : days === 1 ? 'due tomorrow' : `due in ${days} days`}
               </p>
             </div>
+            <button onClick={() => { setEditing(card); setAdding(false) }} className="text-xs text-slate-400">Edit</button>
             <button onClick={() => remove(card)} className="text-xs text-red-400">✕</button>
           </div>
         )
@@ -181,10 +210,10 @@ function CreditCardsCard() {
   )
 }
 
-function CardForm({ onDone }: { onDone: () => void }) {
-  const [name, setName] = useState('')
-  const [statementDay, setStatementDay] = useState('')
-  const [dueDay, setDueDay] = useState('')
+function CardForm({ initial, onDone, onCancel }: { initial?: CreditCard; onDone: () => void; onCancel?: () => void }) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [statementDay, setStatementDay] = useState(initial ? String(initial.statement_day) : '')
+  const [dueDay, setDueDay] = useState(initial ? String(initial.due_day) : '')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -199,7 +228,11 @@ function CardForm({ onDone }: { onDone: () => void }) {
     setError(null)
     try {
       const store = await getStore()
-      await store.createCreditCard({ name: name.trim(), statement_day: s, due_day: d })
+      if (initial) {
+        await store.updateCreditCard(initial.id, { name: name.trim(), statement_day: s, due_day: d })
+      } else {
+        await store.createCreditCard({ name: name.trim(), statement_day: s, due_day: d })
+      }
       onDone()
     } catch (err) {
       setError((err as Error).message)
@@ -218,9 +251,16 @@ function CardForm({ onDone }: { onDone: () => void }) {
         <input inputMode="numeric" placeholder="5" value={dueDay} onChange={(e) => setDueDay(e.target.value.replace(/[^0-9]/g, '').slice(0, 2))} className={`${input} w-14 text-center`} />
       </div>
       {error && <p className="text-xs text-red-400">{error}</p>}
-      <button disabled={busy} className="w-full rounded-lg bg-sky-500 py-2 text-sm font-semibold text-white disabled:opacity-50">
-        {busy ? 'Saving…' : 'Save card'}
-      </button>
+      <div className="flex gap-2">
+        {onCancel && (
+          <button type="button" onClick={onCancel} className="flex-1 rounded-lg border border-slate-700 py-2 text-sm font-semibold text-slate-300">
+            Cancel
+          </button>
+        )}
+        <button disabled={busy} className="flex-1 rounded-lg bg-sky-500 py-2 text-sm font-semibold text-white disabled:opacity-50">
+          {busy ? 'Saving…' : initial ? 'Save changes' : 'Save card'}
+        </button>
+      </div>
     </form>
   )
 }

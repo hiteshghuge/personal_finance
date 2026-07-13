@@ -191,9 +191,9 @@ export class SupabaseStore implements DataStore {
   }
 
   async getSettings(): Promise<UserSettings> {
-    const { data, error } = await this.db.from('user_settings').select('salary_day').maybeSingle()
+    const { data, error } = await this.db.from('user_settings').select('salary_day, salary_bank').maybeSingle()
     throwIf(error)
-    return { salary_day: data?.salary_day ?? null }
+    return { salary_day: data?.salary_day ?? null, salary_bank: data?.salary_bank ?? null }
   }
 
   async updateSettings(patch: Partial<UserSettings>): Promise<void> {
