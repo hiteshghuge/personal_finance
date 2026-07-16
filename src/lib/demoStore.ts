@@ -2,6 +2,7 @@ import type { DataStore } from './store'
 import { directionOf } from '../types'
 import type {
   Category,
+  CreditCard,
   NewTransaction,
   PaymentMethod,
   Person,
@@ -9,6 +10,7 @@ import type {
   Transaction,
   TxFilter,
   TxType,
+  UserSettings,
 } from '../types'
 
 let seq = 0
@@ -203,6 +205,34 @@ export class DemoStore implements DataStore {
   async bulkInsertTransactions(txs: NewTransaction[]) {
     for (const tx of txs) await this.createTransaction(tx)
     return txs.length
+  }
+
+  private settings: UserSettings = { salary_day: 6, salary_bank: 'ICICI' }
+  private creditCards: CreditCard[] = [
+    { id: uid(), name: 'HDFC Millennia', statement_day: 16, due_day: 5 },
+    { id: uid(), name: 'ICICI Amazon Pay', statement_day: 28, due_day: 15 },
+  ]
+
+  async getSettings() {
+    return { ...this.settings }
+  }
+  async updateSettings(patch: Partial<UserSettings>) {
+    Object.assign(this.settings, patch)
+  }
+
+  async listCreditCards() {
+    return [...this.creditCards].sort((a, b) => a.name.localeCompare(b.name))
+  }
+  async createCreditCard(card: Omit<CreditCard, 'id'>) {
+    const c: CreditCard = { id: uid(), ...card }
+    this.creditCards.push(c)
+    return c
+  }
+  async updateCreditCard(id: string, patch: Partial<Omit<CreditCard, 'id'>>) {
+    Object.assign(this.creditCards.find((c) => c.id === id) ?? {}, patch)
+  }
+  async deleteCreditCard(id: string) {
+    this.creditCards = this.creditCards.filter((c) => c.id !== id)
   }
 
   async personBalances(): Promise<PersonBalance[]> {

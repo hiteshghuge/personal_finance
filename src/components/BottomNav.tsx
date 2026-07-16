@@ -5,7 +5,7 @@ const items = [
   { to: '/transactions', label: 'History', icon: '🧾' },
   { to: '/analytics', label: 'Stats', icon: '📊' },
   { to: '/people', label: 'People', icon: '👥' },
-  { to: '/settings', label: 'More', icon: '⚙️' },
+  { to: '/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export default function BottomNav() {

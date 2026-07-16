@@ -64,6 +64,22 @@ export interface TxFilter {
   offset?: number
 }
 
+export interface UserSettings {
+  /** Day of month salary lands (1-31); null = not configured */
+  salary_day: number | null
+  /** Bank the salary lands in — a display name only, optional */
+  salary_bank: string | null
+}
+
+export interface CreditCard {
+  id: string
+  name: string
+  /** Day of month the statement is generated (1-31) */
+  statement_day: number
+  /** Day of month the payment is due (1-31) */
+  due_day: number
+}
+
 export interface PersonBalance {
   person_id: string
   name: string

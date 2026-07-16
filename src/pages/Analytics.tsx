@@ -12,23 +12,28 @@ import {
   YAxis,
 } from 'recharts'
 import { useData } from '../lib/useData'
-import { formatINR, formatMonth, lastMonths, todayISO } from '../lib/format'
+import { formatDate, formatINR, formatMonth, lastMonths, todayISO } from '../lib/format'
+import { salaryCycleRange, type DateRange } from '../lib/cycles'
 import type { Transaction } from '../types'
 
-type Period = 'this' | 'last' | '3m' | '12m'
-
-const PERIODS: Array<[Period, string]> = [
-  ['this', 'This month'],
-  ['last', 'Last month'],
-  ['3m', '3 months'],
-  ['12m', '12 months'],
-]
+interface PeriodDef {
+  key: string
+  label: string
+  range: DateRange
+  /** same-length window before this one, for the delta; null = no comparison */
+  prev: DateRange | null
+}
 
 const INK = { primary: '#f1f5f9', secondary: '#94a3b8', muted: '#64748b', grid: '#1e293b' }
 const SERIES_1 = '#3987e5'
 
+function monthRange(months: string[]): DateRange {
+  const [y, m] = months[months.length - 1].split('-').map(Number)
+  return { from: `${months[0]}-01`, to: `${months[months.length - 1]}-${new Date(y, m, 0).getDate()}` }
+}
+
 export default function Analytics() {
-  const [period, setPeriod] = useState<Period>('this')
+  const [period, setPeriod] = useState<string>('this')
   const months12 = useMemo(() => lastMonths(12), [])
 
   // One fetch covers every widget: all transactions in the last 12 months.
@@ -39,30 +44,48 @@ export default function Analytics() {
   const { data: categories } = useData((s) => s.listCategories())
   const { data: methods } = useData((s) => s.listPaymentMethods())
   const { data: balances } = useData((s) => s.personBalances())
+  const { data: settings } = useData((s) => s.getSettings())
 
   const txs = useMemo(() => data?.rows ?? [], [data])
 
-  const periodMonths = useMemo(() => {
-    if (period === 'this') return months12.slice(-1)
-    if (period === 'last') return months12.slice(-2, -1)
-    if (period === '3m') return months12.slice(-3)
-    return months12
-  }, [period, months12])
+  const periods = useMemo<PeriodDef[]>(() => {
+    const defs: PeriodDef[] = []
+    const salaryDay = settings?.salary_day
+    if (salaryDay) {
+      // Salary-cycle views come first when configured — they answer
+      // "how much of this salary have I spent" directly.
+      const now = new Date()
+      defs.push(
+        { key: 'cycle', label: 'This cycle', range: salaryCycleRange(salaryDay, now, 0), prev: salaryCycleRange(salaryDay, now, -1) },
+        { key: 'lastcycle', label: 'Last cycle', range: salaryCycleRange(salaryDay, now, -1), prev: salaryCycleRange(salaryDay, now, -2) },
+      )
+    }
+    defs.push(
+      { key: 'this', label: 'This month', range: monthRange(months12.slice(-1)), prev: monthRange(months12.slice(-2, -1)) },
+      { key: 'last', label: 'Last month', range: monthRange(months12.slice(-2, -1)), prev: monthRange(months12.slice(-3, -2)) },
+      { key: '3m', label: '3 months', range: monthRange(months12.slice(-3)), prev: monthRange(months12.slice(-6, -3)) },
+      { key: '12m', label: '12 months', range: monthRange(months12), prev: null },
+    )
+    return defs
+  }, [months12, settings])
+
+  const active = periods.find((p) => p.key === period) ?? periods[0]
 
   const inPeriod = useMemo(
-    () => txs.filter((t) => periodMonths.includes(t.occurred_on.slice(0, 7))),
-    [txs, periodMonths],
+    () => txs.filter((t) => t.occurred_on >= active.range.from && t.occurred_on <= active.range.to),
+    [txs, active],
   )
   const expenses = useMemo(() => inPeriod.filter((t) => t.type === 'expense'), [inPeriod])
 
   // Headline: period spend + delta vs the same-length window before it
   const spend = expenses.reduce((s, t) => s + t.amount, 0)
   const prevSpend = useMemo(() => {
-    const idx = months12.indexOf(periodMonths[0])
-    const prevMonths = months12.slice(Math.max(0, idx - periodMonths.length), idx)
-    if (prevMonths.length === 0) return null
-    return sumExpenses(txs, prevMonths)
-  }, [txs, months12, periodMonths])
+    if (!active.prev) return null
+    const { from, to } = active.prev
+    return txs
+      .filter((t) => t.type === 'expense' && t.occurred_on >= from && t.occurred_on <= to)
+      .reduce((s, t) => s + t.amount, 0)
+  }, [txs, active])
   const delta = prevSpend != null && prevSpend > 0 ? ((spend - prevSpend) / prevSpend) * 100 : null
 
   const trend = useMemo(
@@ -115,26 +138,30 @@ export default function Analytics() {
       <h1 className="mb-3 text-xl font-bold">Analytics</h1>
 
       <div className="mb-4 flex gap-2 overflow-x-auto">
-        {PERIODS.map(([p, label]) => (
+        {periods.map((p) => (
           <button
-            key={p}
-            onClick={() => setPeriod(p)}
+            key={p.key}
+            onClick={() => setPeriod(p.key)}
             className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${
-              period === p ? 'border-sky-500 bg-sky-500/15 text-sky-300' : 'border-slate-700 bg-slate-800 text-slate-300'
+              active.key === p.key ? 'border-sky-500 bg-sky-500/15 text-sky-300' : 'border-slate-700 bg-slate-800 text-slate-300'
             }`}
           >
-            {label}
+            {p.label}
           </button>
         ))}
       </div>
 
       {/* Headline stat */}
       <div className="mb-4 rounded-xl border border-slate-800 bg-slate-800/50 p-4">
-        <p className="text-xs text-slate-400">Spend · {PERIODS.find(([p]) => p === period)![1].toLowerCase()}</p>
+        <p className="text-xs text-slate-400">Spend · {active.label.toLowerCase()}</p>
         <p className="text-3xl font-bold">{formatINR(spend)}</p>
+        <p className="text-[11px] text-slate-500">
+          {formatDate(active.range.from)} – {formatDate(active.range.to)}
+        </p>
         {delta != null && (
           <p className={`mt-1 text-xs ${delta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-            {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% vs previous {period === 'this' || period === 'last' ? 'month' : 'period'}
+            {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% vs previous{' '}
+            {active.key.includes('cycle') ? 'cycle' : active.key === 'this' || active.key === 'last' ? 'month' : 'period'}
           </p>
         )}
       </div>
