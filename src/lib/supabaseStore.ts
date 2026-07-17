@@ -163,6 +163,15 @@ export class SupabaseStore implements DataStore {
     throwIf(error)
   }
 
+  async deleteAllTransactions(): Promise<void> {
+    const { data: session } = await this.db.auth.getSession()
+    const userId = session.session?.user.id
+    if (!userId) throw new Error('Not signed in')
+    // transaction_tags rows cascade-delete via their FK.
+    const { error } = await this.db.from('transactions').delete().eq('user_id', userId)
+    throwIf(error)
+  }
+
   async bulkInsertTransactions(txs: NewTransaction[]): Promise<number> {
     let inserted = 0
     for (let i = 0; i < txs.length; i += 500) {

@@ -202,6 +202,10 @@ export class DemoStore implements DataStore {
     this.txs = this.txs.filter((t) => t.id !== id)
   }
 
+  async deleteAllTransactions() {
+    this.txs = []
+  }
+
   async bulkInsertTransactions(txs: NewTransaction[]) {
     for (const tx of txs) await this.createTransaction(tx)
     return txs.length

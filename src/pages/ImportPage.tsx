@@ -28,6 +28,7 @@ export default function ImportPage() {
   const [sheetName, setSheetName] = useState<string>('')
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>({})
   const [negativeIsIncome, setNegativeIsIncome] = useState(true)
+  const [mode, setMode] = useState<'append' | 'replace'>('append')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,10 +57,17 @@ export default function ImportPage() {
 
   async function runImport() {
     if (!good.length) return
+    if (
+      mode === 'replace' &&
+      !confirm('Replace mode will DELETE all your existing transactions first, then import these. This cannot be undone. Continue?')
+    ) {
+      return
+    }
     setBusy(true)
     setError(null)
     try {
       const store = await getStore()
+      if (mode === 'replace') await store.deleteAllTransactions()
       const [cats, methods, people] = await Promise.all([
         store.listCategories(),
         store.listPaymentMethods(),
@@ -185,6 +193,24 @@ export default function ImportPage() {
             </label>
           </div>
 
+          <div className="mb-4 rounded-xl border border-slate-800 bg-slate-800/50 p-4">
+            <p className="mb-2 text-xs font-medium tracking-wide text-slate-400 uppercase">Import mode</p>
+            <label className="flex items-start gap-2 py-1 text-sm text-slate-300">
+              <input type="radio" name="mode" className="mt-1" checked={mode === 'append'} onChange={() => setMode('append')} />
+              <span>
+                <span className="font-medium">Append</span>
+                <span className="block text-xs text-slate-500">Add these on top of what's already there.</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 py-1 text-sm text-slate-300">
+              <input type="radio" name="mode" className="mt-1" checked={mode === 'replace'} onChange={() => setMode('replace')} />
+              <span>
+                <span className="font-medium text-red-300">Replace all</span>
+                <span className="block text-xs text-slate-500">Delete all my existing transactions first, then import. Use for a clean re-load.</span>
+              </span>
+            </label>
+          </div>
+
           {mapped && (
             <>
               <div className="mb-4 rounded-xl border border-slate-800 bg-slate-800/50 p-4">
@@ -226,7 +252,7 @@ export default function ImportPage() {
                 onClick={runImport}
                 className="w-full rounded-xl bg-sky-500 py-3 font-semibold text-white disabled:opacity-50"
               >
-                {busy ? 'Importing…' : `Import ${good.length} transactions`}
+                {busy ? 'Importing…' : mode === 'replace' ? `Replace all with ${good.length} transactions` : `Import ${good.length} transactions`}
               </button>
               <p className="mt-2 text-center text-[11px] text-slate-500">
                 Importing the same file twice creates duplicates — import once, then add new spends in the app.
