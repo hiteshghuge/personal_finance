@@ -30,6 +30,8 @@ export interface DataStore {
   createTransaction(tx: NewTransaction): Promise<Transaction>
   updateTransaction(id: string, patch: Partial<NewTransaction>): Promise<void>
   deleteTransaction(id: string): Promise<void>
+  /** Delete every transaction for the current user (used by import "replace" mode). */
+  deleteAllTransactions(): Promise<void>
   bulkInsertTransactions(txs: NewTransaction[]): Promise<number>
 
   personBalances(): Promise<PersonBalance[]>

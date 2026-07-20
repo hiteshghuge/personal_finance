@@ -71,4 +71,15 @@ describe('DemoStore transactions', () => {
     const { rows } = await store.listTransactions({ search: 'dir test' })
     expect(rows[0].direction).toBe('in')
   })
+
+  it('deleteAllTransactions clears everything (import replace mode)', async () => {
+    const store = new DemoStore()
+    const before = await store.listTransactions({ limit: 100000 })
+    expect(before.total).toBeGreaterThan(0)
+    await store.deleteAllTransactions()
+    const after = await store.listTransactions({ limit: 100000 })
+    expect(after.total).toBe(0)
+    // categories/methods survive so re-import can reuse them
+    expect((await store.listCategories()).length).toBeGreaterThan(0)
+  })
 })

@@ -12,7 +12,7 @@ import {
   YAxis,
 } from 'recharts'
 import { useData } from '../lib/useData'
-import { formatDate, formatINR, formatMonth, lastMonths, todayISO } from '../lib/format'
+import { formatDate, formatINR, formatMonth, lastMonths } from '../lib/format'
 import { salaryCycleRange, type DateRange } from '../lib/cycles'
 import type { Transaction } from '../types'
 
@@ -34,13 +34,11 @@ function monthRange(months: string[]): DateRange {
 
 export default function Analytics() {
   const [period, setPeriod] = useState<string>('this')
+  const [hiddenCats, setHiddenCats] = useState<Set<string>>(new Set())
   const months12 = useMemo(() => lastMonths(12), [])
 
-  // One fetch covers every widget: all transactions in the last 12 months.
-  const { data } = useData(
-    (s) => s.listTransactions({ from: `${months12[0]}-01`, to: todayISO(), limit: 10000 }),
-    [],
-  )
+  // Full history — carry-forward balances need everything, not just 12 months.
+  const { data } = useData((s) => s.listTransactions({ limit: 100000 }), [])
   const { data: categories } = useData((s) => s.listCategories())
   const { data: methods } = useData((s) => s.listPaymentMethods())
   const { data: balances } = useData((s) => s.personBalances())
@@ -52,8 +50,6 @@ export default function Analytics() {
     const defs: PeriodDef[] = []
     const salaryDay = settings?.salary_day
     if (salaryDay) {
-      // Salary-cycle views come first when configured — they answer
-      // "how much of this salary have I spent" directly.
       const now = new Date()
       defs.push(
         { key: 'cycle', label: 'This cycle', range: salaryCycleRange(salaryDay, now, 0), prev: salaryCycleRange(salaryDay, now, -1) },
@@ -77,8 +73,20 @@ export default function Analytics() {
   )
   const expenses = useMemo(() => inPeriod.filter((t) => t.type === 'expense'), [inPeriod])
 
-  // Headline: period spend + delta vs the same-length window before it
   const spend = expenses.reduce((s, t) => s + t.amount, 0)
+  const income = inPeriod.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
+  const remaining = income - spend
+
+  // Carry-forward: net savings (income − expense) accumulated before this period.
+  const opening = useMemo(
+    () =>
+      txs
+        .filter((t) => t.occurred_on < active.range.from)
+        .reduce((s, t) => s + (t.type === 'income' ? t.amount : t.type === 'expense' ? -t.amount : 0), 0),
+    [txs, active],
+  )
+  const closing = opening + remaining
+
   const prevSpend = useMemo(() => {
     if (!active.prev) return null
     const { from, to } = active.prev
@@ -98,9 +106,8 @@ export default function Analytics() {
     [txs, months12],
   )
 
+  // Every category with an expense this period (a multi-tagged spend counts under each tag).
   const byCategory = useMemo(() => {
-    // A transaction counts its full amount under each of its tags,
-    // so a multi-tagged spend shows in every tag it carries.
     const map = new Map<string | null, number>()
     for (const t of expenses) {
       if (t.tag_ids.length === 0) {
@@ -119,9 +126,20 @@ export default function Analytics() {
       .sort((a, b) => b.total - a.total)
   }, [expenses, categories])
 
+  const visibleCats = byCategory.filter((c) => !hiddenCats.has(c.name))
+  const selectedTotal = visibleCats.reduce((s, c) => s + c.total, 0)
+
+  function toggleCat(name: string) {
+    setHiddenCats((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
   const byMethod = useMemo(() => {
     const map = new Map<string | null, number>()
-    // Every outgoing rupee counts here (expense + lend + repay_out)
     for (const t of inPeriod.filter((x) => x.direction === 'out'))
       map.set(t.payment_method_id, (map.get(t.payment_method_id) ?? 0) + t.amount)
     const mMap = new Map((methods ?? []).map((m) => [m.id, m]))
@@ -151,19 +169,27 @@ export default function Analytics() {
         ))}
       </div>
 
-      {/* Headline stat */}
+      {/* Income vs spent + running balance */}
       <div className="mb-4 rounded-xl border border-slate-800 bg-slate-800/50 p-4">
-        <p className="text-xs text-slate-400">Spend · {active.label.toLowerCase()}</p>
-        <p className="text-3xl font-bold">{formatINR(spend)}</p>
-        <p className="text-[11px] text-slate-500">
-          {formatDate(active.range.from)} – {formatDate(active.range.to)}
+        <p className="mb-3 text-xs text-slate-400">
+          {active.label} · {formatDate(active.range.from)} – {formatDate(active.range.to)}
         </p>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <Stat label="Income" value={income} tone="in" />
+          <Stat label="Spent" value={spend} tone="out" />
+          <Stat label="Remaining" value={remaining} tone={remaining >= 0 ? 'in' : 'out'} signed />
+        </div>
         {delta != null && (
-          <p className={`mt-1 text-xs ${delta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-            {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% vs previous{' '}
+          <p className={`mt-2 text-center text-xs ${delta > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+            Spend {delta > 0 ? '▲' : '▼'} {Math.abs(delta).toFixed(0)}% vs previous{' '}
             {active.key.includes('cycle') ? 'cycle' : active.key === 'this' || active.key === 'last' ? 'month' : 'period'}
           </p>
         )}
+        <div className="mt-3 space-y-1 border-t border-slate-700/60 pt-3 text-xs">
+          <Row label="Balance carried in" value={formatINR(opening)} muted />
+          <Row label={`${remaining >= 0 ? '+' : '−'} this ${active.key.includes('cycle') ? 'cycle' : 'period'}`} value={formatINR(Math.abs(remaining))} muted />
+          <Row label="Balance now" value={formatINR(closing)} strong tone={closing >= 0 ? 'in' : 'out'} />
+        </div>
       </div>
 
       {/* 12-month trend */}
@@ -174,8 +200,8 @@ export default function Analytics() {
             <YAxis hide />
             <Tooltip
               cursor={{ fill: '#ffffff10' }}
-              content={({ active, payload }) =>
-                active && payload?.[0] ? (
+              content={({ active: a, payload }) =>
+                a && payload?.[0] ? (
                   <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs shadow-lg">
                     <p className="text-slate-400">{formatMonth((payload[0].payload as { ym: string }).ym)}</p>
                     <p className="font-semibold text-slate-100">{formatINR(payload[0].value as number)}</p>
@@ -188,55 +214,73 @@ export default function Analytics() {
         </ResponsiveContainer>
       </Card>
 
-      {/* Category breakdown */}
+      {/* Category breakdown — all categories, tap to include/exclude */}
       <Card title="Where it went">
         {byCategory.length === 0 ? (
           <Empty />
         ) : (
-          <div className="flex items-center gap-4">
-            <ResponsiveContainer width={120} height={120}>
-              <PieChart>
-                <Pie
-                  data={byCategory}
-                  dataKey="total"
-                  nameKey="name"
-                  innerRadius={36}
-                  outerRadius={56}
-                  paddingAngle={2}
-                  isAnimationActive={false}
-                  stroke="#0f172a"
-                  strokeWidth={2}
-                >
-                  {byCategory.map((c) => (
-                    <Cell key={c.name} fill={c.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  content={({ active, payload }) =>
-                    active && payload?.[0] ? (
-                      <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs shadow-lg">
-                        <p className="font-semibold text-slate-100">{payload[0].name}</p>
-                        <p className="text-slate-300">{formatINR(payload[0].value as number)}</p>
-                      </div>
-                    ) : null
-                  }
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="min-w-0 flex-1 space-y-1.5">
-              {byCategory.slice(0, 6).map((c) => (
-                <div key={c.name} className="flex items-center gap-2 text-xs">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
-                  <span className="min-w-0 flex-1 truncate text-slate-300">{c.name}</span>
-                  <span className="font-semibold text-slate-100">{formatINR(c.total)}</span>
-                  <span className="w-9 text-right text-slate-500">{spend > 0 ? Math.round((c.total / spend) * 100) : 0}%</span>
-                </div>
-              ))}
-              {byCategory.length > 6 && (
-                <p className="text-[11px] text-slate-500">+ {byCategory.length - 6} more in History filters</p>
-              )}
+          <>
+            <div className="flex items-center gap-4">
+              <ResponsiveContainer width={120} height={120}>
+                <PieChart>
+                  <Pie
+                    data={visibleCats.length ? visibleCats : [{ name: 'none', color: '#334155', total: 1 }]}
+                    dataKey="total"
+                    nameKey="name"
+                    innerRadius={36}
+                    outerRadius={56}
+                    paddingAngle={2}
+                    isAnimationActive={false}
+                    stroke="#0f172a"
+                    strokeWidth={2}
+                  >
+                    {(visibleCats.length ? visibleCats : [{ name: 'none', color: '#334155', total: 1 }]).map((c) => (
+                      <Cell key={c.name} fill={c.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    content={({ active: a, payload }) =>
+                      a && payload?.[0] ? (
+                        <div className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs shadow-lg">
+                          <p className="font-semibold text-slate-100">{payload[0].name}</p>
+                          <p className="text-slate-300">{formatINR(payload[0].value as number)}</p>
+                        </div>
+                      ) : null
+                    }
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-slate-400">Selected total</p>
+                <p className="text-xl font-bold">{formatINR(selectedTotal)}</p>
+                <p className="mt-1 text-[11px] text-slate-500">Tap a tag to include / exclude it.</p>
+              </div>
             </div>
-          </div>
+            <div className="mt-3 max-h-64 space-y-0.5 overflow-y-auto">
+              {byCategory.map((c) => {
+                const hidden = hiddenCats.has(c.name)
+                return (
+                  <button
+                    key={c.name}
+                    onClick={() => toggleCat(c.name)}
+                    className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-xs hover:bg-slate-800/60"
+                  >
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: hidden ? 'transparent' : c.color, border: `2px solid ${c.color}` }}
+                    />
+                    <span className={`min-w-0 flex-1 truncate text-left ${hidden ? 'text-slate-600 line-through' : 'text-slate-300'}`}>
+                      {c.name}
+                    </span>
+                    <span className={`font-semibold ${hidden ? 'text-slate-600' : 'text-slate-100'}`}>{formatINR(c.total)}</span>
+                    <span className="w-9 text-right text-slate-500">
+                      {!hidden && selectedTotal > 0 ? `${Math.round((c.total / selectedTotal) * 100)}%` : '—'}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
         )}
       </Card>
 
@@ -276,6 +320,29 @@ export default function Analytics() {
           </div>
         )}
       </Card>
+    </div>
+  )
+}
+
+function Stat({ label, value, tone, signed }: { label: string; value: number; tone: 'in' | 'out'; signed?: boolean }) {
+  return (
+    <div>
+      <p className="text-[11px] text-slate-400">{label}</p>
+      <p className={`text-base font-bold ${tone === 'in' ? 'text-emerald-400' : 'text-red-400'}`}>
+        {signed && value >= 0 ? '+' : signed && value < 0 ? '−' : ''}
+        {formatINR(Math.abs(value))}
+      </p>
+    </div>
+  )
+}
+
+function Row({ label, value, muted, strong, tone }: { label: string; value: string; muted?: boolean; strong?: boolean; tone?: 'in' | 'out' }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className={muted ? 'text-slate-400' : 'text-slate-300'}>{label}</span>
+      <span className={`${strong ? 'font-bold' : 'font-medium'} ${tone === 'in' ? 'text-emerald-400' : tone === 'out' ? 'text-red-400' : 'text-slate-200'}`}>
+        {value}
+      </span>
     </div>
   )
 }

@@ -4,10 +4,10 @@ export type Direction = 'out' | 'in'
 export const TX_TYPE_LABELS: Record<TxType, string> = {
   expense: 'Expense',
   income: 'Income',
-  lend: 'Lent to person',
-  borrow: 'Borrowed from person',
-  repay_out: 'I repaid them',
-  repay_in: 'They repaid me',
+  lend: 'Lent',
+  borrow: 'Borrowed',
+  repay_out: 'I repaid',
+  repay_in: 'Got repaid',
 }
 
 export const PERSON_TX_TYPES: TxType[] = ['lend', 'borrow', 'repay_out', 'repay_in']

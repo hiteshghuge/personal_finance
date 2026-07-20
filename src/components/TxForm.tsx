@@ -156,20 +156,19 @@ export default function TxForm({ initial, onSaved, onCancel }: Props) {
         </Section>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <input
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-sky-500"
-        />
-        <input
-          placeholder="Note (optional)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-sky-500"
-        />
-      </div>
+      <input
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+        className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-sky-500"
+      />
+      <textarea
+        placeholder="Note (optional)"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={3}
+        className="w-full resize-y rounded-xl border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm outline-none focus:border-sky-500"
+      />
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
